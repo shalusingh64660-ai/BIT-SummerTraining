@@ -23,8 +23,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    scan = scan_source(args.input)
 
-    markdown = render_markdown(scan_source(args.input))
+    markdown = render_markdown(scan)
     if args.output:
         Path(args.output).write_text(markdown, encoding="utf-8")
     else:

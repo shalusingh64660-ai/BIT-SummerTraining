@@ -56,7 +56,7 @@ Print:
 A company has customer age, city, total purchases, application usage time, and service preference. It wants to discover customer groups, but it has no labels such as `premium` or `regular`.
 
 Print:
-
+ 
 - the learning type;
 - the problem type;
 - one sentence explaining why labels are not required.

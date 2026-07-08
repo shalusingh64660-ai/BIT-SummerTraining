@@ -6,6 +6,7 @@ First generate safe sample files:
 
 ```bash
 python scripts/create_sample_inputs.py
+
 ```
 
 This creates:

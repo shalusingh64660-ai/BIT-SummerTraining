@@ -1,0 +1,180 @@
+[1mdiff --git a/README.md b/README.md[m
+[1mindex 6e3457d..692e9ea 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -28,6 +28,11 @@[m [massignments/[m
+     submissions/[m
+       batch-a/[m
+       batch-b/[m
+[32m+[m[32m  day-05/[m
+[32m+[m[32m    questions.md[m
+[32m+[m[32m    submissions/[m
+[32m+[m[32m      batch-a/[m
+[32m+[m[32m      batch-b/[m
+ resources/[m
+   setup-guide.md[m
+   python-basics.md[m
+[1mdiff --git a/resources/python_project_mangaScanner/src/manga_scanner/cli.py b/resources/python_project_mangaScanner/src/manga_scanner/cli.py[m
+[1mindex 507ec1c..71bc9b8 100644[m
+[1m--- a/resources/python_project_mangaScanner/src/manga_scanner/cli.py[m
+[1m+++ b/resources/python_project_mangaScanner/src/manga_scanner/cli.py[m
+[36m@@ -23,8 +23,9 @@[m [mdef build_parser() -> argparse.ArgumentParser:[m
+ def main(argv: list[str] | None = None) -> int:[m
+     parser = build_parser()[m
+     args = parser.parse_args(argv)[m
+[32m+[m[32m    scan = scan_source(args.input)[m
+ [m
+[31m-    markdown = render_markdown(scan_source(args.input))[m
+[32m+[m[32m    markdown = render_markdown(scan)[m
+     if args.output:[m
+         Path(args.output).write_text(markdown, encoding="utf-8")[m
+     else:[m
+[1mdiff --git a/resources/python_project_mangaScanner/src/manga_scanner/loaders.py b/resources/python_project_mangaScanner/src/manga_scanner/loaders.py[m
+[1mindex 88ad27d..c5bd967 100644[m
+[1m--- a/resources/python_project_mangaScanner/src/manga_scanner/loaders.py[m
+[1m+++ b/resources/python_project_mangaScanner/src/manga_scanner/loaders.py[m
+[36m@@ -3,23 +3,180 @@[m
+ from __future__ import annotations[m
+ [m
+ from pathlib import Path[m
+[32m+[m[32mimport io[m
+[32m+[m[32mimport zipfile[m
+[32m+[m
+[32m+[m[32mfrom PIL import Image[m
+ [m
+ from manga_scanner.models import PageInput[m
+[32m+[m[32mfrom manga_scanner.errors import ([m
+[32m+[m[32m    CorruptSourceError,[m
+[32m+[m[32m    EmptySourceError,[m
+[32m+[m[32m    SourceNotFoundError,[m
+[32m+[m[32m    UnsupportedSourceError,[m
+[32m+[m[32m)[m
+[32m+[m[32mfrom manga_scanner.sorting import natural_sort_key[m
+ [m
+ SUPPORTED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}[m
+ SUPPORTED_ARCHIVE_EXTENSIONS = {".cbz", ".zip"}[m
+ [m
+ [m
+ def load_pages(path: str | Path) -> list[PageInput]:[m
+[31m-    """Load pages from an image folder, CBZ/ZIP archive, or PDF.[m
+[32m+[m[32m    path = Path(path)[m
+[32m+[m
+[32m+[m[32m    if not path.exists():[m
+[32m+[m[32m        raise SourceNotFoundError(str(path))[m
+[32m+[m
+[32m+[m[32m    if path.is_file():[m
+[32m+[m[32m        if path.suffix.lower() not in ([m
+[32m+[m[32m            *SUPPORTED_IMAGE_EXTENSIONS,[m
+[32m+[m[32m            *SUPPORTED_ARCHIVE_EXTENSIONS,[m
+[32m+[m[32m            ".pdf",[m
+[32m+[m[32m        ):[m
+[32m+[m[32m            raise UnsupportedSourceError(str(path))[m
+[32m+[m
+[32m+[m[32m    # -------------------------[m
+[32m+[m[32m    # SINGLE IMAGE[m
+[32m+[m[32m    # -------------------------[m
+[32m+[m[32m    if path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:[m
+[32m+[m[32m        try:[m
+[32m+[m[32m            img = Image.open(path).convert("RGB")[m
+[32m+[m[32m        except Exception as exc:[m
+[32m+[m[32m            raise CorruptSourceError(str(path)) from exc[m
+[32m+[m
+[32m+[m[32m        return [[m
+[32m+[m[32m            PageInput([m
+[32m+[m[32m                page_number=1,[m
+[32m+[m[32m                source_name=path.name,[m
+[32m+[m[32m                image=img,[m
+[32m+[m[32m                width=img.width,[m
+[32m+[m[32m                height=img.height,[m
+[32m+[m[32m            )[m
+[32m+[m[32m        ][m
+[32m+[m
+[32m+[m[32m    # -------------------------[m
+[32m+[m[32m    # FOLDER[m
+[32m+[m[32m    # -------------------------[m
+[32m+[m[32m    if path.is_dir():[m
+[32m+[m[32m        image_files = [[m
+[32m+[m[32m            f for f in path.iterdir()[m
+[32m+[m[32m            if f.is_file() and f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS[m
+[32m+[m[32m        ][m
+[32m+[m
+[32m+[m[32m        image_files.sort(key=lambda f: natural_sort_key(f.name))[m
+[32m+[m
+[32m+[m[32m        if not image_files:[m
+[32m+[m[32m            raise EmptySourceError(str(path))[m
+[32m+[m
+[32m+[m[32m        pages: list[PageInput] = [][m
+[32m+[m
+[32m+[m[32m        for i, file in enumerate(image_files, start=1):[m
+[32m+[m[32m            try:[m
+[32m+[m[32m                img = Image.open(file).convert("RGB")[m
+[32m+[m[32m            except Exception as exc:[m
+[32m+[m[32m                raise CorruptSourceError(str(file)) from exc[m
+[32m+[m
+[32m+[m[32m            pages.append([m
+[32m+[m[32m                PageInput([m
+[32m+[m[32m                    page_number=i,[m
+[32m+[m[32m                    source_name=file.name,[m
+[32m+[m[32m                    image=img,[m
+[32m+[m[32m                    width=img.width,[m
+[32m+[m[32m                    height=img.height,[m
+[32m+[m[32m                )[m
+[32m+[m[32m            )[m
+[32m+[m
+[32m+[m[32m        return pages[m
+[32m+[m
+[32m+[m[32m    # -------------------------[m
+[32m+[m[32m    # ZIP / CBZ[m
+[32m+[m[32m    # -------------------------[m
+[32m+[m[32m    if path.is_file() and path.suffix.lower() in SUPPORTED_ARCHIVE_EXTENSIONS:[m
+[32m+[m[32m        try:[m
+[32m+[m[32m            with zipfile.ZipFile(path, "r") as archive:[m
+[32m+[m[32m                image_names = [[m
+[32m+[m[32m                    name for name in archive.namelist()[m
+[32m+[m[32m                    if not name.endswith("/")[m
+[32m+[m[32m                    and Path(name).suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS[m
+[32m+[m[32m                ][m
+[32m+[m
+[32m+[m[32m                if not image_names:[m
+[32m+[m[32m                    raise EmptySourceError(str(path))[m
+[32m+[m
+[32m+[m[32m                # Sort primarily by the image's filename itself, then by directory structures[m
+[32m+[m[32m                def zip_sort_key(name: str):[m
+[32m+[m[32m                    p = Path(name)[m
+[32m+[m[32m                    return (natural_sort_key(p.name), tuple(natural_sort_key(part) for part in p.parts))[m
+[32m+[m
+[32m+[m[32m                image_names.sort(key=zip_sort_key)[m
+[32m+[m
+[32m+[m[32m                pages: list[PageInput] = [][m
+[32m+[m
+[32m+[m[32m                for i, name in enumerate(image_names, start=1):[m
+[32m+[m[32m                    try:[m
+[32m+[m[32m                        with archive.open(name) as f:[m
+[32m+[m[32m                            img = Image.open(io.BytesIO(f.read())).convert("RGB")[m
+[32m+[m[32m                    except Exception as exc:[m
+[32m+[m[32m                        raise CorruptSourceError(name) from exc[m
+[32m+[m
+[32m+[m[32m                    pages.append([m
+[32m+[m[32m                        PageInput([m
+[32m+[m[32m                            page_number=i,[m
+[32m+[m[32m                            source_name=name,[m
+[32m+[m[32m                            image=img,[m
+[32m+[m[32m                            width=img.width,[m
+[32m+[m[32m                            height=img.height,[m
+[32m+[m[32m                        )[m
+[32m+[m[32m                    )[m
+[32m+[m
+[32m+[m[32m                return pages[m
+[32m+[m
+[32m+[m[32m        except zipfile.BadZipFile as exc:[m
+[32m+[m[32m            raise CorruptSourceError(str(path)) from exc[m
+[32m+[m
+[32m+[m[32m    # -------------------------[m
+[32m+[m[32m    # PDF[m
+[32m+[m[32m    # -------------------------[m
+[32m+[m[32m    if path.is_file() and path.suffix.lower() == ".pdf":[m
+[32m+[m[32m        try:[m
+[32m+[m[32m            from pdf2image import convert_from_path[m
+[32m+[m[32m            from pdf2image.exceptions import PDFInfoNotInstalledError[m
+[32m+[m[41m            [m
+[32m+[m[32m            images = co
